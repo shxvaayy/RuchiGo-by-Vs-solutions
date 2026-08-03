@@ -103,11 +103,14 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 border-b border-orange-100 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <NavLink to="/" className="flex min-w-0 items-center gap-2">
-          <Logo type="full" className="h-10 w-auto sm:h-11" showText />
+        <NavLink to="/" className="flex shrink-0 items-center gap-2.5">
+          <Logo type="icon" className="h-10 w-auto" animate={false} />
+          <span className="hidden whitespace-nowrap text-xl font-extrabold tracking-tight text-gray-900 md:block">
+            Ruchi<span className="text-orange-500">Go</span>
+          </span>
         </NavLink>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden min-w-0 items-center gap-1 lg:flex">
           {items.map((item) => {
             const Icon = item.icon;
 
@@ -115,46 +118,52 @@ export default function Navbar() {
               <NavLink
                 key={item.name}
                 to={item.path}
+                title={item.name}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                  `flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
                     isActive
                       ? "bg-orange-500 text-white shadow-md shadow-orange-100"
                       : "text-gray-600 hover:bg-orange-50 hover:text-orange-500"
                   }`
                 }
               >
-                <Icon size={18} />
-                <span>{item.name}</span>
+                <Icon size={18} className="shrink-0" />
+                <span className="hidden xl:inline">{item.name}</span>
               </NavLink>
             );
           })}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           {isAuthenticated ? (
-            <div className="hidden items-center gap-3 lg:flex">
-              <div className="rounded-2xl border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-gray-700">
-                <p className="text-[11px] text-gray-500">Signed in as</p>
-                <p className="font-semibold text-gray-900">{user?.name || roleLabel}</p>
-              </div>
+            <div className="hidden items-center gap-2 lg:flex">
+              <span className="whitespace-nowrap rounded-full border border-orange-100 bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-600">
+                {roleLabel}
+              </span>
 
-              <div className="flex items-center gap-2 rounded-2xl border border-orange-100 bg-white px-3 py-2">
-                {profileItems.map((item) => (
-                  <NavLink
-                    key={item.name}
-                    to={item.path}
-                    className="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-orange-50 hover:text-orange-500"
-                  >
-                    {item.name}
-                  </NavLink>
-                ))}
-                <button
-                  onClick={handleLogout}
-                  className="rounded-lg px-2 py-1 text-sm text-red-500 hover:bg-red-50"
-                >
-                  Logout
-                </button>
-              </div>
+              {role === "customer" && (
+                <div className="flex items-center gap-1 rounded-2xl border border-orange-100 bg-white px-2 py-1.5">
+                  {profileItems.map((item) => (
+                    <NavLink
+                      key={item.name}
+                      to={item.path}
+                      title={item.name}
+                      className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-orange-50 hover:text-orange-500"
+                    >
+                      <item.icon size={16} className="shrink-0" />
+                      <span className="hidden 2xl:inline">{item.name}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-red-100 px-3 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50"
+              >
+                <LogOut size={16} className="shrink-0" />
+                Logout
+              </button>
             </div>
           ) : (
             <div className="hidden items-center gap-2 lg:flex">
@@ -203,7 +212,7 @@ export default function Navbar() {
 
             {isAuthenticated ? (
               <>
-                {profileItems.map((item) => (
+                {role === "customer" && profileItems.map((item) => (
                   <NavLink
                     key={item.name}
                     to={item.path}
