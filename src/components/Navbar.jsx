@@ -30,7 +30,7 @@ export default function Navbar() {
   const guestItems = [
     { name: "Home", icon: Home, path: "/" },
     { name: "Restaurants", icon: Search, path: "/search" },
-    { name: "Offers", icon: MapPin, path: "/" },
+    { name: "Support", icon: Headphones, path: "/support" },
   ];
 
   const customerItems = [
@@ -39,6 +39,7 @@ export default function Navbar() {
     { name: "Cart", icon: ShoppingCart, path: "/cart" },
     { name: "Orders", icon: Package, path: "/orders" },
     { name: "Wishlist", icon: Heart, path: "/wishlist" },
+    { name: "Support", icon: Headphones, path: "/support" },
   ];
 
   const restaurantItems = [
