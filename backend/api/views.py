@@ -158,3 +158,13 @@ class AnalyticsViewSet(viewsets.ViewSet):
     permission_classes=[IsAdmin]
     def list(self, request):
         return Response({"users":User.objects.values("role").annotate(count=Count("id")), "orders":Order.objects.values("status").annotate(count=Count("id"), revenue=Sum("total")), "restaurants":Restaurant.objects.filter(is_approved=True).count()})
+
+class SupportTicketViewSet(viewsets.ModelViewSet):
+    queryset = SupportTicket.objects.order_by("-created_at")
+    serializer_class = SupportTicketSerializer
+    http_method_names = ["get", "post", "patch", "head", "options"]
+    def get_permissions(self):
+        if self.action == "create": return [permissions.AllowAny()]
+        return [IsAdmin()]
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user if self.request.user.is_authenticated else None, status=SupportTicket.Status.OPEN)

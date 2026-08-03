@@ -193,3 +193,10 @@ class AnalyticsEvent(TimestampedModel):
 class AuditLog(TimestampedModel):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     action = models.CharField(max_length=120); target = models.CharField(max_length=255); metadata = models.JSONField(default=dict, blank=True)
+
+class SupportTicket(TimestampedModel):
+    class Status(models.TextChoices): OPEN="open", "Open"; IN_PROGRESS="in_progress", "In progress"; RESOLVED="resolved", "Resolved"
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="support_tickets")
+    name = models.CharField(max_length=120); email = models.EmailField()
+    subject = models.CharField(max_length=200); message = models.TextField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)

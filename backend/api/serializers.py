@@ -83,3 +83,9 @@ class CheckoutSerializer(serializers.Serializer):
         Payment.objects.create(order=order, method=data["payment_method"], amount=order.total)
         cart.items.all().delete(); Notification.objects.create(user=user, title="Order placed", message=f"Your order {order.number} was placed.", kind="order")
         return order
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportTicket
+        fields = ["id", "name", "email", "subject", "message", "status", "created_at"]
+        read_only_fields = ["created_at"]

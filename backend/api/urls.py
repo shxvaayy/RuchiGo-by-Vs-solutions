@@ -20,4 +20,5 @@ router.register("deliveries", DeliveryViewSet, basename="delivery")
 router.register("notifications", NotificationViewSet, basename="notification")
 router.register("reviews", ReviewViewSet, basename="review")
 router.register("analytics", AnalyticsViewSet, basename="analytics")
+router.register("support-tickets", SupportTicketViewSet, basename="support-ticket")
 urlpatterns = [path("auth/token/refresh/", TokenRefreshView.as_view(), name="token-refresh"), path("", include(router.urls))]

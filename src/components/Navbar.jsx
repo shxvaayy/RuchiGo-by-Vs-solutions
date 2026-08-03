@@ -2,6 +2,7 @@ import Logo from "./common/Logo.jsx";
 import {
   BarChart3,
   ChefHat,
+  Headphones,
   Heart,
   Home,
   LayoutDashboard,
@@ -64,6 +65,7 @@ export default function Navbar() {
     { name: "Orders", icon: Package, path: "/admin-orders" },
     { name: "Payments", icon: ShoppingCart, path: "/admin-payments" },
     { name: "Reports", icon: BarChart3, path: "/admin-reports" },
+    { name: "Support", icon: Headphones, path: "/admin-support" },
   ];
 
   const items =

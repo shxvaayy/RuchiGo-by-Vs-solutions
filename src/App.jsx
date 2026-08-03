@@ -21,6 +21,7 @@ import Privacy from "./pages/Privacy.jsx";
 import Terms from "./pages/Terms.jsx";
 import Offers from "./pages/Offers.jsx";
 import Support from "./pages/Support.jsx";
+import AdminSupport from "./pages/AdminSupport.jsx";
 
 import RestaurantDashboard from "./pages/RestaurantDashboard.jsx";
 import RestaurantMenu from "./pages/RestaurantMenu.jsx";
@@ -113,6 +114,7 @@ export default function App() {
         <Route path="/admin-orders" element={<ProtectedRoute allowedRoles={["admin"]}><AdminOrders /></ProtectedRoute>} />
         <Route path="/admin-payments" element={<ProtectedRoute allowedRoles={["admin"]}><AdminPayments /></ProtectedRoute>} />
         <Route path="/admin-reports" element={<ProtectedRoute allowedRoles={["admin"]}><AdminReports /></ProtectedRoute>} />
+        <Route path="/admin-support" element={<ProtectedRoute allowedRoles={["admin"]}><AdminSupport /></ProtectedRoute>} />
 
         <Route path="*" element={<div className="flex min-h-screen items-center justify-center bg-[#fffaf7] px-4 text-center"><div className="rounded-[28px] border border-orange-100 bg-white p-8 shadow-sm"><h1 className="text-3xl font-black text-gray-900">404 - Page Not Found</h1><p className="mt-2 text-sm text-gray-600">The page you are looking for does not exist.</p><a href="/" className="mt-5 inline-flex rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white">Back to Home</a></div></div>} />
       </Routes>
