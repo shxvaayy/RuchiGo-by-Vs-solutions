@@ -43,5 +43,7 @@ CORS_ALLOWED_ORIGINS = [u.strip() for u in os.getenv("FRONTEND_URL", "http://loc
 CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL", "false").lower() == "true"
 REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",), "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticatedOrReadOnly",), "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema", "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend", "rest_framework.filters.SearchFilter", "rest_framework.filters.OrderingFilter"], "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination", "PAGE_SIZE": 20}
 SPECTACULAR_SETTINGS = {"TITLE": "RuchiGo API", "VERSION": "v1", "SERVE_INCLUDE_SCHEMA": False}
+from datetime import timedelta
+SIMPLE_JWT = {"ACCESS_TOKEN_LIFETIME": timedelta(hours=12), "REFRESH_TOKEN_LIFETIME": timedelta(days=7)}
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@ruchigo.local")
