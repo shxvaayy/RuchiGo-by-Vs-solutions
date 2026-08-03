@@ -8,7 +8,7 @@ class Command(BaseCommand):
         customer, _ = User.objects.get_or_create(email="customer@ruchigo.local", defaults={"role":"customer", "first_name":"Ruchi", "username":"customer@ruchigo.local"})
         customer.set_password("ChangeMe123!"); customer.save()
         support, _ = User.objects.get_or_create(email="support@ruchigo.online", defaults={"role":"customer", "first_name":"Support", "username":"support@ruchigo.online"})
-        support.set_password("123456"); support.save()
+        support.set_password("Ruchigo1433@"); support.save()
         owner, _ = User.objects.get_or_create(email="restaurant@ruchigo.local", defaults={"role":"restaurant", "first_name":"Kitchen", "username":"restaurant@ruchigo.local"})
         owner.set_password("ChangeMe123!"); owner.save()
         restaurant, _ = Restaurant.objects.get_or_create(owner=owner, defaults={"name":"RuchiGo Kitchen", "phone":"9999999999", "address":"MG Road", "city":"Delhi", "is_approved":True})
