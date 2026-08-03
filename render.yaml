@@ -1,0 +1,25 @@
+databases:
+  - name: ruchigo-db
+    plan: free
+
+services:
+  - type: web
+    name: ruchigo-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py migrate && python manage.py seed_ruchigo && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ruchigo-db
+          property: connectionString
+      - key: DJANGO_ALLOWED_HOSTS
+        value: "*"
+      - key: CORS_ALLOW_ALL
+        value: "true"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.12.6
