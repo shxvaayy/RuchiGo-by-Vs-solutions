@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Headphones, Inbox, Loader2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
+import AdminSidebar from "../components/AdminSidebar.jsx";
 import { apiRequest } from "../lib/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -58,8 +59,10 @@ export default function AdminSupport() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fff8f5] px-4 py-10 text-gray-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="min-h-screen bg-[#fffaf7]">
+      <AdminSidebar />
+      <main className="ml-72 min-h-screen px-4 py-10 text-gray-900 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-orange-500">Admin</p>
@@ -142,7 +145,8 @@ export default function AdminSupport() {
             </div>
           )}
         </div>
-      </div>
-    </main>
+        </div>
+      </main>
+    </div>
   );
 }
