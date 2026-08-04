@@ -25,6 +25,9 @@ Runs at http://127.0.0.1:8000, api docs at /api/docs/
 
 Uses SQLite by default for local dev. For MySQL, run database/RuchiGo_DB.sql first and update backend/.env with the credentials.
 
+## Deployment checklist
+See `DEPLOYMENT_CHECKLIST.md` for production readiness and final deployment steps.
+
 ## Frontend setup
 
 ```
