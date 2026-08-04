@@ -1,3 +1,5 @@
+import { useEffect, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import DeliverySidebar from "../components/DeliverySidebar.jsx";
 import {
   Navigation,
@@ -13,6 +15,8 @@ import {
   CheckCircle2,
   Bell,
 } from "lucide-react";
+import { apiRequest } from "../lib/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const routeSteps = [
   {
@@ -42,6 +46,114 @@ const routeSteps = [
 ];
 
 export default function DeliveryNavigation() {
+  const { token } = useAuth();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const orderId = params.get("orderId");
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const getStatusLabel = (status) => {
+    if (status === "out_for_delivery") return "Out for delivery";
+    if (status === "ready") return "Ready for pickup";
+    if (status === "delivered") return "Delivered";
+    if (status === "confirmed") return "Confirmed";
+    if (status === "preparing") return "Preparing";
+    if (status === "cancelled") return "Cancelled";
+    return status?.replace(/_/g, " ") || "Unknown";
+  };
+
+  const getStatusClass = (status) => {
+    if (status === "out_for_delivery") return "bg-orange-50 text-orange-600";
+    if (status === "ready") return "bg-blue-50 text-blue-600";
+    if (status === "delivered") return "bg-green-50 text-green-600";
+    if (status === "cancelled") return "bg-red-50 text-red-600";
+    return "bg-gray-50 text-gray-600";
+  };
+
+  const buildNavigationLink = () => {
+    const address = order?.delivery_address_detail;
+    if (!address) return null;
+    const destination = [address.line1, address.city, address.state, address.postal_code]
+      .filter(Boolean)
+      .join(", ");
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+  };
+
+  const handleOpenMaps = () => {
+    const url = buildNavigationLink();
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const fetchOrder = useCallback(async () => {
+    if (!token) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const path = orderId ? `/orders/${orderId}/` : "/orders/?status=out_for_delivery";
+      const data = await apiRequest(path, { token });
+      const result = orderId ? data : (data.results || data)[0] || null;
+      if (!result) {
+        setError("No active delivery order found.");
+        setOrder(null);
+        return;
+      }
+      setOrder(result);
+    } catch (err) {
+      setError(err.message || "Unable to load delivery order.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, orderId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchOrder();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [fetchOrder]);
+
+  const handleMarkDelivered = async () => {
+    if (!token || !order) return;
+    setUpdatingStatus(true);
+    try {
+      await apiRequest(`/orders/${order.id}/status/`, { method: "POST", token, body: { status: "delivered" } });
+      setOrder({ ...order, status: "delivered" });
+    } catch (err) {
+      setError(err.message || "Unable to update delivery status.");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#fffaf7]">
+        <DeliverySidebar />
+        <main className="ml-72 min-h-screen p-10">
+          <p>Loading delivery navigation…</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#fffaf7]">
+        <DeliverySidebar />
+        <main className="ml-72 min-h-screen p-10">
+          <p className="text-red-500">{error}</p>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#fffaf7]">
       <DeliverySidebar />
@@ -66,8 +178,12 @@ export default function DeliveryNavigation() {
               </p>
 
               <p className="font-bold text-orange-500">
-                #RG1290
+                {order?.number ? `#RG${String(order.number).slice(0, 8).toUpperCase()}` : "—"}
               </p>
+            </div>
+
+            <div className={`rounded-full px-4 py-2 text-xs font-semibold ${getStatusClass(order?.status)}`}>
+              {getStatusLabel(order?.status)}
             </div>
 
             <button className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
@@ -212,12 +328,12 @@ export default function DeliveryNavigation() {
 
                 <div className="mt-5 flex items-center gap-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-500 text-lg font-bold text-white">
-                    PK
+                    {order?.customer_detail?.first_name?.[0] || "C"}{order?.customer_detail?.last_name?.[0] || ""}
                   </div>
 
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">
-                      Pavan K
+                      {order?.customer_detail ? `${order.customer_detail.first_name || ""} ${order.customer_detail.last_name || ""}`.trim() || order.customer_detail.email : "Customer"}
                     </h2>
 
                     <p className="mt-1 text-sm text-gray-500">
@@ -234,11 +350,11 @@ export default function DeliveryNavigation() {
 
                   <div>
                     <p className="font-semibold text-gray-900">
-                      24-5, Lakshmipuram
+                      {order?.delivery_address_detail?.line1 || "Delivery address"}
                     </p>
 
                     <p className="mt-1 text-sm text-gray-500">
-                      Near Main Road, Guntur
+                      {order?.delivery_address_detail ? `${order.delivery_address_detail.city || ""}${order.delivery_address_detail.state ? ", " + order.delivery_address_detail.state : ""}` : ""}
                     </p>
                   </div>
                 </div>
@@ -276,7 +392,7 @@ export default function DeliveryNavigation() {
                     </div>
 
                     <span className="font-bold text-gray-900">
-                      #RG1290
+                      {order?.number ? `#RG${String(order.number).slice(0, 8).toUpperCase()}` : "—"}
                     </span>
                   </div>
 
@@ -293,7 +409,7 @@ export default function DeliveryNavigation() {
                     </div>
 
                     <span className="font-bold text-gray-900">
-                      12 min
+                      {order?.delivery?.eta || "12 min"}
                     </span>
                   </div>
 
@@ -310,7 +426,7 @@ export default function DeliveryNavigation() {
                     </div>
 
                     <span className="font-bold text-gray-900">
-                      3.8 km
+                      {order?.delivery?.distance || "3.8 km"}
                     </span>
                   </div>
                 </div>
@@ -329,10 +445,25 @@ export default function DeliveryNavigation() {
                   the customer.
                 </p>
 
-                <button className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-5 py-4 font-bold text-orange-500 transition hover:bg-orange-50">
-                  <CheckCircle2 size={21} />
-                  Mark as Delivered
-                </button>
+                <div className="mt-6 grid gap-3 md:grid-cols-2">
+                  <button
+                    onClick={handleMarkDelivered}
+                    disabled={!order || updatingStatus}
+                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-5 py-4 font-bold text-orange-500 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <CheckCircle2 size={21} />
+                    {updatingStatus ? "Updating..." : "Mark as Delivered"}
+                  </button>
+
+                  <button
+                    onClick={handleOpenMaps}
+                    disabled={!order?.delivery_address_detail}
+                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-orange-500 px-5 py-4 text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Navigation size={21} />
+                    Open Route
+                  </button>
+                </div>
               </section>
             </div>
           </div>

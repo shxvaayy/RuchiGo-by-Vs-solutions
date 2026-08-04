@@ -16,6 +16,9 @@ import {
 
 import { Link } from "react-router-dom";
 import { useCart } from "../context/CartContext.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../lib/api.js";
+import { useEffect, useState } from "react";
 
 const menuItems = [
   {
@@ -53,17 +56,15 @@ const menuItems = [
 export default function Profile() {
 
   const { cartItems, total } = useCart();
+  const { user: authUser, token } = useAuth();
+  const [orderCount, setOrderCount] = useState(0);
 
   // Temporary User Data
   // Later this will come from your backend
 
-  const user = {
-    name: "Pavan K",
-    email: "pavan@example.com",
-    phone: "+91 98765 43210",
-    totalOrders: 24,
-    reviews: 8,
-  };
+  const user = { name: authUser?.name || `${authUser?.first_name || ""} ${authUser?.last_name || ""}`.trim() || "Customer", email: authUser?.email || "", phone: authUser?.phone || "Not added", totalOrders: orderCount, reviews: 0 };
+
+  useEffect(() => { apiRequest("/orders/", { token }).then((data) => setOrderCount((data.results || data).length)).catch(() => setOrderCount(0)); }, [token]);
 
   // Temporary Orders
   // Later replace with API response

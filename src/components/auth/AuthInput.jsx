@@ -12,6 +12,7 @@ const AuthInput = ({
   required = false,
   disabled = false,
   autoComplete = "off",
+  ...inputProps
 }) => {
   return (
     <div className="mb-5">
@@ -55,6 +56,7 @@ const AuthInput = ({
           disabled={disabled}
           autoComplete={autoComplete}
           placeholder={placeholder}
+          {...inputProps}
           className="w-full py-3 pr-4 bg-transparent outline-none text-gray-700 placeholder:text-gray-400"
         />
       </motion.div>

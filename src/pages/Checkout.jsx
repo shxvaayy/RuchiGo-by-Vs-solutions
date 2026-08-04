@@ -10,27 +10,11 @@ import {
 } from "lucide-react";
 
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import toast from "react-hot-toast";
-
-const addresses = [
-  {
-    id: 1,
-    type: "Home",
-    name: "Pavan",
-    address: "Brodipet, Guntur, Andhra Pradesh - 522002",
-    phone: "+91 98765 43210",
-  },
-  {
-    id: 2,
-    type: "Work",
-    name: "Pavan",
-    address: "Lakshmipuram, Guntur, Andhra Pradesh - 522007",
-    phone: "+91 98765 43210",
-  },
-];
+import { apiRequest } from "../lib/api.js";
 
 export default function Checkout() {
   const {
@@ -43,13 +27,43 @@ export default function Checkout() {
   } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
 
-  const [selectedAddress, setSelectedAddress] =
-    useState(1);
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [placingOrder, setPlacingOrder] = useState(false);
 
   const [instructions, setInstructions] =
     useState("");
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    apiRequest("/addresses/", { token })
+      .then((data) => {
+        const results = data.results || data;
+        setAddresses(results);
+        setSelectedAddress(results.find((address) => address.is_default)?.id || results[0]?.id || null);
+      })
+      .catch((error) => toast.error(error.message));
+  }, [isAuthenticated, token]);
+
+  const placeOrder = async () => {
+    if (!selectedAddress) {
+      toast.error("Add and select a delivery address before placing your order.");
+      navigate("/addresses");
+      return;
+    }
+    setPlacingOrder(true);
+    try {
+      await apiRequest("/cart/checkout/", { token, method: "POST", body: { address_id: selectedAddress, payment_method: "cod", notes: instructions } });
+      toast.success("Order placed successfully.");
+      navigate("/orders", { replace: true });
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
 
   if (!isAuthenticated) {
     toast.error("Please login to continue.");
@@ -169,7 +183,7 @@ export default function Checkout() {
 
                   </div>
 
-                  <button className="flex items-center gap-2 rounded-xl bg-orange-50 px-4 py-3 font-semibold text-orange-500 transition hover:bg-orange-100">
+                  <button onClick={() => navigate("/addresses")} className="flex items-center gap-2 rounded-xl bg-orange-50 px-4 py-3 font-semibold text-orange-500 transition hover:bg-orange-100">
 
                     <Plus size={18} />
 
@@ -205,7 +219,7 @@ export default function Checkout() {
 
                       <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-orange-500 shadow-sm">
 
-                        {address.type === "Home" ? (
+                        {address.label === "Home" ? (
                           <Home size={20} />
                         ) : (
                           <BriefcaseBusiness size={20} />
@@ -214,19 +228,19 @@ export default function Checkout() {
                       </div>
 
                       <h3 className="mt-4 font-bold text-gray-900">
-                        {address.type}
+                        {address.label}
                       </h3>
 
                       <p className="mt-2 font-medium text-gray-700">
-                        {address.name}
+                        {address.line1}
                       </p>
 
                       <p className="mt-2 text-sm leading-6 text-gray-500">
-                        {address.address}
+                        {[address.line2, address.city, address.state, address.postal_code].filter(Boolean).join(", ")}
                       </p>
 
                       <p className="mt-3 text-sm text-gray-500">
-                        {address.phone}
+                        Delivery address
                       </p>
 
                     </div>
@@ -386,24 +400,22 @@ export default function Checkout() {
                   </p>
 
                   <p className="mt-2 text-sm leading-6 text-gray-600">
-                    {
-                      addresses.find(
-                        (a) => a.id === selectedAddress
-                      )?.address
-                    }
+                    {(() => { const address = addresses.find((item) => item.id === selectedAddress); return address ? [address.line1, address.line2, address.city, address.state, address.postal_code].filter(Boolean).join(", ") : "Select a delivery address"; })()}
                   </p>
 
                 </div>
 
                 {cartItems.length > 0 ? (
 
-                  <Link
-                    to="/payment"
+                  <button
+                    type="button"
+                    onClick={placeOrder}
+                    disabled={placingOrder || !selectedAddress}
                     className="mt-7 flex w-full items-center justify-center gap-3 rounded-2xl bg-orange-500 px-6 py-4 text-lg font-semibold text-white shadow-lg transition hover:bg-orange-600"
                   >
-                    Continue to Payment
+                    {placingOrder ? "Placing order..." : "Place cash-on-delivery order"}
                     <ArrowRight size={20} />
-                  </Link>
+                  </button>
 
                 ) : (
 

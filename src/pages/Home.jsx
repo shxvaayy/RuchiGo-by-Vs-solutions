@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -14,8 +14,8 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 
 import Navbar from "../components/Navbar.jsx";
-import { foodData } from "../data/foodData";
 import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../lib/api.js";
 
 const categoryCards = [
   { name: "Biryani", tag: "Spicy & aromatic", icon: Flame },
@@ -36,28 +36,13 @@ export default function Home() {
   const navigate = useNavigate();
   const { isAuthenticated, logout } = useAuth();
   const [query, setQuery] = useState("");
+  const [trendingRestaurants, setTrendingRestaurants] = useState([]);
+  const [featuredDishes, setFeaturedDishes] = useState([]);
 
-  const trendingRestaurants = useMemo(() => {
-    const grouped = foodData.reduce((accumulator, item) => {
-      if (!accumulator[item.restaurantId]) {
-        accumulator[item.restaurantId] = {
-          id: item.restaurantId,
-          name: item.restaurant,
-          cuisine: item.category,
-          rating: item.rating,
-          time: item.deliveryTime,
-          image: item.image,
-          offer: item.category === "Biryani" ? "50% OFF" : "FREE DELIVERY",
-        };
-      }
-
-      return accumulator;
-    }, {});
-
-    return Object.values(grouped).slice(0, 3);
+  useEffect(() => {
+    apiRequest("/restaurants/").then((data) => setTrendingRestaurants((data.results || data).slice(0, 3).map((restaurant) => ({ id: restaurant.id, name: restaurant.name, cuisine: restaurant.description || restaurant.city, rating: restaurant.average_rating || "New", time: "30-40 min", image: restaurant.image || "/favicon.svg", offer: "FREE DELIVERY" }))));
+    apiRequest("/menu-items/").then((data) => setFeaturedDishes((data.results || data).slice(0, 4).map((item) => ({ id: item.id, name: item.name, restaurant: item.restaurant_detail?.name || "Restaurant", price: Number(item.price), deliveryTime: `${item.preparation_minutes} min`, image: item.image || "/favicon.svg" }))));
   }, []);
-
-  const featuredDishes = useMemo(() => foodData.slice(0, 4), []);
 
   const statCards = [
     { label: "Happy Customers", value: "25k+" },

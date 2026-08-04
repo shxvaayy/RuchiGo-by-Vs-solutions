@@ -1,11 +1,14 @@
 from datetime import timedelta
 import secrets
 from django.db.models import Avg, Count, Sum
+from django.contrib.auth.hashers import check_password, make_password
+from django.core.mail import send_mail
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from .models import *
 from .permissions import IsAdmin, IsDelivery, IsRestaurant, IsRestaurantOrAdmin
 from .serializers import *
@@ -14,8 +17,19 @@ def tokens_for(user):
     refresh = RefreshToken.for_user(user)
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
+def create_otp(user, purpose):
+    code = f"{secrets.randbelow(1000000):06d}"
+    OTP.objects.create(user=user, purpose=purpose, code=make_password(code), expires_at=timezone.now()+timedelta(minutes=10))
+    send_mail("Your RuchiGo verification code", f"Your verification code is {code}. It expires in 10 minutes.", None, [user.email], fail_silently=False)
+    return code
+
+def valid_otp(user, code, purpose):
+    otp = OTP.objects.filter(user=user, purpose=purpose, used_at__isnull=True).order_by("-created_at").first()
+    return otp if otp and otp.is_valid() and check_password(code or "", otp.code) else None
+
 class AuthViewSet(viewsets.GenericViewSet):
     permission_classes = [permissions.AllowAny]
+    serializer_class = UserSerializer
     @action(detail=False, methods=["post"])
     def register(self, request):
         serializer = RegisterSerializer(data=request.data); serializer.is_valid(raise_exception=True); user = serializer.save()
@@ -45,23 +59,27 @@ class AuthViewSet(viewsets.GenericViewSet):
         user = User.objects.filter(email__iexact=request.data.get("email", "")).first()
         if user:
             OTP.objects.filter(user=user, purpose=OTP.Purpose.RESET_PASSWORD, used_at__isnull=True).update(used_at=timezone.now())
-            OTP.objects.create(user=user, purpose=OTP.Purpose.RESET_PASSWORD, code=f"{secrets.randbelow(1000000):06d}", expires_at=timezone.now()+timedelta(minutes=10))
+            create_otp(user, OTP.Purpose.RESET_PASSWORD)
         return Response({"detail": "If the account exists, a reset code has been sent."})
     @action(detail=False, methods=["post"])
     def reset_password(self, request):
         email, code, password = request.data.get("email"), request.data.get("code"), request.data.get("password")
-        otp = OTP.objects.filter(user__email__iexact=email, code=code, purpose=OTP.Purpose.RESET_PASSWORD, used_at__isnull=True).order_by("-created_at").first()
-        if not otp or not otp.is_valid(): return Response({"detail": "Invalid or expired code."}, status=400)
+        if not isinstance(password, str): return Response({"detail": "A valid password is required."}, status=400)
+        user = User.objects.filter(email__iexact=email).first()
+        otp = valid_otp(user, code, OTP.Purpose.RESET_PASSWORD) if user else None
+        if not otp: return Response({"detail": "Invalid or expired code."}, status=400)
+        from django.contrib.auth import password_validation
+        password_validation.validate_password(password, otp.user)
         user = otp.user; user.set_password(password); user.save(); otp.used_at=timezone.now(); otp.save(update_fields=["used_at"])
         return Response({"detail": "Password reset successfully."})
     @action(detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def request_email_verification(self, request):
-        OTP.objects.create(user=request.user, purpose=OTP.Purpose.VERIFY_EMAIL, code=f"{secrets.randbelow(1000000):06d}", expires_at=timezone.now()+timedelta(minutes=10))
+        create_otp(request.user, OTP.Purpose.VERIFY_EMAIL)
         return Response({"detail": "Verification code sent."})
     @action(detail=False, methods=["post"], permission_classes=[permissions.IsAuthenticated])
     def verify_email(self, request):
-        otp = OTP.objects.filter(user=request.user, code=request.data.get("code"), purpose=OTP.Purpose.VERIFY_EMAIL, used_at__isnull=True).order_by("-created_at").first()
-        if not otp or not otp.is_valid(): return Response({"detail": "Invalid or expired code."}, status=400)
+        otp = valid_otp(request.user, request.data.get("code"), OTP.Purpose.VERIFY_EMAIL)
+        if not otp: return Response({"detail": "Invalid or expired code."}, status=400)
         request.user.email_verified=True; request.user.save(update_fields=["email_verified"]); otp.used_at=timezone.now(); otp.save(update_fields=["used_at"])
         return Response({"detail": "Email verified."})
 
@@ -97,6 +115,7 @@ class ReviewViewSet(OwnedViewSet): queryset=Review.objects.select_related("resta
 
 class CartViewSet(viewsets.ViewSet):
     permission_classes=[permissions.IsAuthenticated]
+    serializer_class=CartSerializer
     def list(self, request):
         cart,_=Cart.objects.get_or_create(user=request.user); return Response(CartSerializer(cart).data)
     @action(detail=False, methods=["post"])
@@ -107,7 +126,8 @@ class CartViewSet(viewsets.ViewSet):
         cart.restaurant=menu.restaurant; cart.save(); item,created=CartItem.objects.get_or_create(cart=cart, menu_item=menu, defaults={"quantity":request.data.get("quantity",1)})
         if not created: item.quantity=min(item.quantity+int(request.data.get("quantity",1)),99); item.save()
         return Response(CartSerializer(cart).data, status=201)
-    @action(detail=False, methods=["patch", "delete"], url_path="items/(?P<item_id>[^/.]+)")
+    @extend_schema(parameters=[OpenApiParameter("item_id", int, OpenApiParameter.PATH)])
+    @action(detail=False, methods=["patch", "delete"], url_path="items/(?P<item_id>[0-9]+)")
     def item(self, request, item_id=None):
         cart,_=Cart.objects.get_or_create(user=request.user); item=CartItem.objects.filter(cart=cart, pk=item_id).first()
         if not item: return Response({"detail":"Not found."}, status=404)
@@ -120,23 +140,62 @@ class CartViewSet(viewsets.ViewSet):
         s=CheckoutSerializer(data=request.data, context={"request":request}); s.is_valid(raise_exception=True); return Response(OrderSerializer(s.save()).data, status=201)
 
 class OrderViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class=OrderSerializer; filterset_fields=["status", "restaurant"]
+    queryset=Order.objects.none(); serializer_class=OrderSerializer; filterset_fields=["status", "restaurant"]
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False): return Order.objects.none()
         user=self.request.user; qs=Order.objects.select_related("restaurant", "customer").prefetch_related("items")
         if user.is_superuser or user.role==User.Role.ADMIN: return qs
         if user.role==User.Role.RESTAURANT: return qs.filter(restaurant__owner=user)
-        if user.role==User.Role.DELIVERY: return qs.filter(delivery__partner=user)
+        if user.role==User.Role.DELIVERY:
+            if self.action == "accept":
+                return qs.filter(status=Order.Status.READY, delivery__isnull=True)
+            return qs.filter(delivery__partner=user)
         return qs.filter(customer=user)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsDelivery])
+    def available(self, request):
+        qs = Order.objects.filter(status=Order.Status.READY, delivery__isnull=True).select_related("restaurant", "customer").prefetch_related("items")
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            return self.get_paginated_response(OrderSerializer(page, many=True).data)
+        return Response(OrderSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsDelivery])
+    def accept(self, request, pk=None):
+        order = self.get_object()
+        if order.status != Order.Status.READY:
+            return Response({"detail": "Order is not ready for pickup."}, status=400)
+        try:
+            if order.delivery is not None:
+                return Response({"detail": "Order is already assigned."}, status=400)
+        except Order.delivery.RelatedObjectDoesNotExist:
+            pass
+        DeliveryAssignment.objects.create(order=order, partner=request.user, pickup_at=timezone.now())
+        order.status = Order.Status.OUT
+        order.save(update_fields=["status", "updated_at"])
+        Notification.objects.create(user=order.customer, title="Order update", message=f"Order {order.number} is out for delivery.", kind="order")
+        return Response(OrderSerializer(order).data)
+
     @action(detail=True, methods=["post"])
     def status(self, request, pk=None):
-        order=self.get_object(); new=request.data.get("status")
-        allowed={User.Role.RESTAURANT:{"confirmed","preparing","ready","cancelled"}, User.Role.DELIVERY:{"out_for_delivery","delivered"}, User.Role.ADMIN:{x for x,_ in Order.Status.choices}}
-        if request.user.role not in allowed or new not in allowed[request.user.role]: return Response({"detail":"Status transition not allowed."}, status=403)
-        order.status=new; order.save(update_fields=["status", "updated_at"]); Notification.objects.create(user=order.customer,title="Order update",message=f"Order {order.number} is {order.get_status_display()}.",kind="order"); return Response(OrderSerializer(order).data)
+        order = self.get_object(); new = request.data.get("status")
+        allowed = {User.Role.RESTAURANT: {"confirmed", "preparing", "ready", "cancelled"}, User.Role.DELIVERY: {"out_for_delivery", "delivered"}, User.Role.ADMIN: {x for x,_ in Order.Status.choices}}
+        if request.user.role not in allowed or new not in allowed[request.user.role]:
+            return Response({"detail": "Status transition not allowed."}, status=403)
+        if request.user.role == User.Role.DELIVERY:
+            try:
+                if order.delivery.partner != request.user:
+                    return Response({"detail": "You are not assigned to this delivery."}, status=403)
+            except Order.delivery.RelatedObjectDoesNotExist:
+                return Response({"detail": "You are not assigned to this delivery."}, status=403)
+        order.status = new; order.save(update_fields=["status", "updated_at"])
+        Notification.objects.create(user=order.customer, title="Order update", message=f"Order {order.number} is {order.get_status_display()}.", kind="order")
+        return Response(OrderSerializer(order).data)
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class=PaymentSerializer; permission_classes=[permissions.IsAuthenticated]
+    queryset=Payment.objects.none(); serializer_class=PaymentSerializer; permission_classes=[permissions.IsAuthenticated]
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False): return Payment.objects.none()
         user=self.request.user; qs=Payment.objects.select_related("order", "order__restaurant")
         if user.is_superuser or user.role==User.Role.ADMIN: return qs
         if user.role==User.Role.RESTAURANT: return qs.filter(order__restaurant__owner=user)
@@ -155,7 +214,7 @@ class DeliveryViewSet(viewsets.ModelViewSet):
     queryset=DeliveryAssignment.objects.select_related("order"); serializer_class=DeliverySerializer; permission_classes=[IsDelivery]
     def get_queryset(self): return super().get_queryset().filter(partner=self.request.user)
 class AnalyticsViewSet(viewsets.ViewSet):
-    permission_classes=[IsAdmin]
+    permission_classes=[IsAdmin]; serializer_class=AnalyticsEventSerializer
     def list(self, request):
         return Response({"users":User.objects.values("role").annotate(count=Count("id")), "orders":Order.objects.values("status").annotate(count=Count("id"), revenue=Sum("total")), "restaurants":Restaurant.objects.filter(is_approved=True).count()})
 

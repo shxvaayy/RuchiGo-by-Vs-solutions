@@ -8,6 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.venv
+backend/.venv
 dist
 dist-ssr
 *.local
@@ -23,10 +25,16 @@ dist-ssr
 *.sln
 *.sw?
 
-# Python / Django
-.venv
+# Python / Django / OS
 __pycache__/
 *.pyc
+*.pyo
 db.sqlite3
 .env
-.env.local
+backend/.env
+media/
+staticfiles/
+build/
+coverage/
+Thumbs.db
+.env.production

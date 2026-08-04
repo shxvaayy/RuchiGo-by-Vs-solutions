@@ -7,12 +7,14 @@ import {
   Wallet,
   Bike,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../lib/api.js";
 
 const tabs = ["Active", "Completed", "Cancelled"];
 
-const orders = [
+const initialOrders = [
   {
     id: "#RG202600128",
     restaurant: "Paradise Biryani",
@@ -58,8 +60,29 @@ const orders = [
 
 export default function Orders() {
 
+  const { token } = useAuth();
+  const [orders, setOrders] = useState(initialOrders);
+
   const [activeTab, setActiveTab] =
     useState("Active");
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest("/orders/", { token }).then((data) => {
+      const results = data.results || data;
+      setOrders(results.map((order) => ({
+        id: `#RG${String(order.number).slice(0, 8).toUpperCase()}`,
+        trackingId: order.id,
+        restaurant: order.restaurant_detail?.name || "Restaurant",
+        items: (order.items || []).map((item) => item.name),
+        total: Number(order.total),
+        status: order.status === "delivered" ? "Delivered" : order.status === "cancelled" ? "Cancelled" : order.status === "out_for_delivery" ? "On the Way" : "Preparing",
+        payment: order.payment?.status === "paid" ? "Paid" : "Cash on delivery",
+        date: new Date(order.created_at).toLocaleDateString(),
+        icon: "🍽️",
+      })));
+    }).catch(() => setOrders([]));
+  }, [token]);
 
   const filteredOrders = orders.filter((order) => {
 
@@ -408,7 +431,7 @@ export default function Orders() {
                     {order.status === "On the Way" && (
 
                       <Link
-                        to="/tracking"
+                        to={`/tracking/${order.trackingId}`}
                         className="rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white transition hover:bg-orange-600"
                       >
                         Track Order

@@ -21,7 +21,6 @@ import Privacy from "./pages/Privacy.jsx";
 import Terms from "./pages/Terms.jsx";
 import Offers from "./pages/Offers.jsx";
 import Support from "./pages/Support.jsx";
-import AdminSupport from "./pages/AdminSupport.jsx";
 
 import RestaurantDashboard from "./pages/RestaurantDashboard.jsx";
 import RestaurantMenu from "./pages/RestaurantMenu.jsx";
@@ -42,6 +41,7 @@ import AdminDeliveryPartners from "./pages/AdminDeliveryPartners.jsx";
 import AdminOrders from "./pages/AdminOrders.jsx";
 import AdminPayments from "./pages/AdminPayments.jsx";
 import AdminReports from "./pages/AdminReports.jsx";
+import AdminSupport from "./pages/AdminSupport.jsx";
 
 import Login from "./pages/Auth/Login.jsx";
 import Register from "./pages/Auth/Register.jsx";
@@ -53,6 +53,7 @@ import TwoFactorAuth from "./pages/Auth/TwoFactorAuth.jsx";
 import AccountLocked from "./pages/Auth/AccountLocked.jsx";
 import Unauthorized from "./pages/Auth/Unauthorized.jsx";
 import AccessDenied from "./pages/Auth/AccessDenied.jsx";
+import SessionExpired from "./pages/Auth/SessionExpired.jsx";
 
 import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
 import GuestRoute from "./components/auth/GuestRoute.jsx";
@@ -67,11 +68,12 @@ export default function App() {
         <Route path="/forgot-password" element={<GuestRoute><ForgotPassword /></GuestRoute>} />
         <Route path="/verify-otp" element={<GuestRoute><VerifyOTP /></GuestRoute>} />
         <Route path="/reset-password" element={<GuestRoute><ResetPassword /></GuestRoute>} />
-        <Route path="/email-verification" element={<GuestRoute><EmailVerification /></GuestRoute>} />
+        <Route path="/email-verification" element={<ProtectedRoute><EmailVerification /></ProtectedRoute>} />
         <Route path="/two-factor-auth" element={<GuestRoute><TwoFactorAuth /></GuestRoute>} />
         <Route path="/account-locked" element={<GuestRoute><AccountLocked /></GuestRoute>} />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/access-denied" element={<AccessDenied />} />
+        <Route path="/session-expired" element={<SessionExpired />} />
 
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
@@ -87,7 +89,7 @@ export default function App() {
         <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
         <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         <Route path="/payment" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
-        <Route path="/tracking" element={<ProtectedRoute><Tracking /></ProtectedRoute>} />
+        <Route path="/tracking/:id?" element={<ProtectedRoute><Tracking /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
         <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />

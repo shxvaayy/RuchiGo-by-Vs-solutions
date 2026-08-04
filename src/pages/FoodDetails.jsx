@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Navbar from "../components/Navbar.jsx";
@@ -21,6 +21,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { foodData } from "../data/foodData";
 
 import toast from "react-hot-toast";
+import { apiRequest } from "../lib/api.js";
 
 export default function FoodDetails() {
   const { id } = useParams();
@@ -35,16 +36,21 @@ export default function FoodDetails() {
 
   const [liked, setLiked] = useState(false);
 
-  const food =
-    foodData.find((item) => item.id === Number(id)) || foodData[0];
+  const [food, setFood] = useState(foodData.find((item) => item.id === Number(id)) || foodData[0]);
+  const [allFoods, setAllFoods] = useState(foodData);
 
-  const recommendedFoods = foodData.filter(
+  useEffect(() => {
+    apiRequest(`/menu-items/${id}/`).then((item) => setFood({ id: item.id, restaurantId: item.restaurant, restaurant: item.restaurant_detail?.name || "Restaurant", category: item.category_name || "Menu", name: item.name, description: item.description, price: Number(item.price), rating: item.restaurant_detail?.average_rating || "New", isVeg: item.is_vegetarian, deliveryTime: `${item.preparation_minutes} min`, image: item.image || "/favicon.svg", imageAlt: item.name }));
+    apiRequest("/menu-items/").then((data) => setAllFoods((data.results || data).map((item) => ({ id: item.id, restaurantId: item.restaurant, name: item.name, description: item.description, price: Number(item.price), image: item.image || "/favicon.svg", category: item.category_name || "Menu", isVeg: item.is_vegetarian, rating: item.restaurant_detail?.average_rating || "New" }))));
+  }, [id]);
+
+  const recommendedFoods = allFoods.filter(
     (item) =>
       item.restaurantId === food.restaurantId &&
       item.id !== food.id
   );
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!isAuthenticated) {
       toast.error("Please login to continue.");
 
@@ -59,8 +65,11 @@ export default function FoodDetails() {
       return;
     }
 
-    for (let i = 0; i < quantity; i++) {
-      addToCart(food);
+    try {
+      await addToCart(food, quantity);
+    } catch (error) {
+      toast.error(error.message);
+      return;
     }
 
     toast.success("Added to cart successfully 🎉");

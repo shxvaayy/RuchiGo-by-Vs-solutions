@@ -7,8 +7,12 @@ import {
   ShoppingCart,
 } from "lucide-react";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import { useCart } from "../context/CartContext.jsx";
+import { apiRequest } from "../lib/api.js";
+import toast from "react-hot-toast";
 
 const favouriteRestaurants = [
   {
@@ -29,7 +33,7 @@ const favouriteRestaurants = [
   },
 ];
 
-const favouriteFoods = [
+const initialFavouriteFoods = [
   {
     id: 1,
     name: "Chicken Dum Biryani",
@@ -59,6 +63,18 @@ const favouriteFoods = [
 export default function Wishlist() {
 
   const [search, setSearch] = useState("");
+  const [favouriteFoods, setFavouriteFoods] = useState(initialFavouriteFoods);
+  const { token } = useAuth();
+  const { addToCart } = useCart();
+
+  useEffect(() => {
+    apiRequest("/wishlist/", { token }).then((data) => setFavouriteFoods((data.results || data).map((entry) => ({ id: entry.id, menuItemId: entry.menu_item, name: entry.menu_item_detail?.name || "Menu item", restaurant: entry.menu_item_detail?.restaurant_detail?.name || "Restaurant", price: Number(entry.menu_item_detail?.price || 0), rating: entry.menu_item_detail?.restaurant_detail?.average_rating || "New", image: entry.menu_item_detail?.image || "🍽️" })))).catch((error) => toast.error(error.message));
+  }, [token]);
+
+  const removeFood = async (id) => {
+    try { await apiRequest(`/wishlist/${id}/`, { token, method: "DELETE" }); setFavouriteFoods((foods) => foods.filter((food) => food.id !== id)); toast.success("Removed from wishlist."); }
+    catch (error) { toast.error(error.message); }
+  };
 
   const filteredRestaurants =
     favouriteRestaurants.filter((restaurant) =>
@@ -261,7 +277,7 @@ export default function Wishlist() {
 
                       </div>
 
-                      <button className="text-red-500">
+                      <button onClick={() => removeFood(food.id)} className="text-red-500">
 
                         <Heart
                           size={22}
@@ -295,7 +311,7 @@ export default function Wishlist() {
 
                     <div className="mt-6 flex gap-3">
 
-                      <button className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-600">
+                      <button onClick={async () => { try { await addToCart({ id: food.menuItemId || food.id }); toast.success("Added to cart."); } catch (error) { toast.error(error.message); } }} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-600">
 
                         <ShoppingCart size={18} />
 
@@ -303,7 +319,7 @@ export default function Wishlist() {
 
                       </button>
 
-                      <button className="rounded-xl border border-red-200 px-4 py-3 font-semibold text-red-500 transition hover:bg-red-500 hover:text-white">
+                      <button onClick={() => removeFood(food.id)} className="rounded-xl border border-red-200 px-4 py-3 font-semibold text-red-500 transition hover:bg-red-500 hover:text-white">
                         Remove
                       </button>
 

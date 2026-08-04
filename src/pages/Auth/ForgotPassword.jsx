@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail } from "lucide-react";
+import toast from "react-hot-toast";
 
 import AuthLayout from "../../components/auth/AuthLayout";
 import AuthInput from "../../components/auth/AuthInput";
 import AuthButton from "../../components/auth/AuthButton";
 import AuthFooter from "../../components/auth/AuthFooter";
+import { apiRequest } from "../../lib/api.js";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -34,12 +36,15 @@ const ForgotPassword = () => {
     if (!validate()) return;
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      navigate("/verify-otp", {
-        state: { email },
-      });
-    }, 1200);
+    apiRequest("/auth/forgot_password/", { method: "POST", body: { email: email.trim().toLowerCase() } })
+      .then(() => {
+        toast.success("If that account exists, a reset code has been sent.");
+        navigate("/verify-otp", {
+          state: { email: email.trim().toLowerCase(), purpose: "reset-password" },
+        });
+      })
+      .catch((requestError) => setError(requestError.message))
+      .finally(() => setLoading(false));
   };
 
   return (

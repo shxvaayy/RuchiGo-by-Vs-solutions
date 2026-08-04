@@ -1,10 +1,10 @@
 import {
   LayoutDashboard,
-  UtensilsCrossed,
   ShoppingBag,
   Wallet,
   BarChart3,
   LogOut,
+  Navigation,
 } from "lucide-react";
 
 import { NavLink, useNavigate } from "react-router-dom";
@@ -14,31 +14,31 @@ const menuItems = [
   {
     name: "Dashboard",
     icon: LayoutDashboard,
-    path: "/restaurant-dashboard",
-  },
-  {
-    name: "Menu",
-    icon: UtensilsCrossed,
-    path: "/restaurant-menu",
+    path: "/delivery-dashboard",
   },
   {
     name: "Orders",
     icon: ShoppingBag,
-    path: "/restaurant-orders",
+    path: "/delivery-orders",
+  },
+  {
+    name: "Navigation",
+    icon: Navigation,
+    path: "/delivery-navigation",
   },
   {
     name: "Earnings",
     icon: Wallet,
-    path: "/restaurant-earnings",
+    path: "/delivery-earnings",
   },
   {
-    name: "Analytics",
+    name: "Profile",
     icon: BarChart3,
-    path: "/restaurant-analytics",
+    path: "/delivery-profile",
   },
 ];
 
-export default function RestaurantSidebar() {
+export default function DeliverySidebar() {
   const navigate = useNavigate();
 
   const handleLogout = () => {

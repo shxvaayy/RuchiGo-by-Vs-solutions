@@ -67,8 +67,8 @@ const Login = () => {
     });
   };
 
-  const handleSocialLogin = (provider) => {
-    console.log("Login with:", provider);
+  const handleSocialLogin = () => {
+    // Social login placeholder for future providers.
   };
 
   return (

@@ -93,8 +93,8 @@ const Register = () => {
     });
   };
 
-  const handleSocialLogin = (provider) => {
-    console.log(provider);
+  const handleSocialLogin = () => {
+    // Social login is a placeholder for future integration.
   };
 
   return (

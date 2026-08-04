@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'backend/.venv', 'backend/**/.venv/**']),
+  // A workspace-level virtual environment is not application source.
+  globalIgnores(['dist', 'node_modules', '.venv', '.venv/**', 'backend/.venv', 'backend/**/.venv/**']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

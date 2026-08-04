@@ -1,3 +1,7 @@
+import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../lib/api.js";
 import DeliverySidebar from "../components/DeliverySidebar.jsx";
 import {
   ShoppingBag,
@@ -13,63 +17,19 @@ import {
   Bell,
 } from "lucide-react";
 
-const orders = [
-  {
-    id: "#RG1302",
-    restaurant: "Paradise Biryani",
-    restaurantAddress: "Brodipet, Guntur",
-    customer: "Pavan K",
-    customerAddress: "Lakshmipuram, Guntur",
-    distance: "3.8 km",
-    time: "18 min",
-    earning: "₹68",
-    status: "Available",
-    items: "2 Items",
-  },
-  {
-    id: "#RG1301",
-    restaurant: "Pizza Hub",
-    restaurantAddress: "Arundelpet, Guntur",
-    customer: "Sai Nadh",
-    customerAddress: "Pattabhipuram, Guntur",
-    distance: "4.2 km",
-    time: "22 min",
-    earning: "₹74",
-    status: "Available",
-    items: "3 Items",
-  },
-  {
-    id: "#RG1298",
-    restaurant: "Burger House",
-    restaurantAddress: "Lakshmipuram, Guntur",
-    customer: "Suhitha",
-    customerAddress: "Gorantla, Guntur",
-    distance: "5.1 km",
-    time: "28 min",
-    earning: "₹82",
-    status: "Active",
-    items: "2 Items",
-  },
-  {
-    id: "#RG1287",
-    restaurant: "Paradise Biryani",
-    restaurantAddress: "Brodipet, Guntur",
-    customer: "Kiran Kumar",
-    customerAddress: "Nallapadu, Guntur",
-    distance: "6.4 km",
-    time: "Completed",
-    earning: "₹96",
-    status: "Completed",
-    items: "4 Items",
-  },
-];
-
 const tabs = [
   "All Orders",
   "Available",
   "Active",
   "Completed",
 ];
+
+const tabPaths = {
+  "All Orders": "/orders/",
+  Available: "/orders/available/",
+  Active: "/orders/?status=out_for_delivery",
+  Completed: "/orders/?status=delivered",
+};
 
 function getStatusStyle(status) {
   if (status === "Available") {
@@ -80,10 +40,119 @@ function getStatusStyle(status) {
     return "bg-orange-50 text-orange-500";
   }
 
-  return "bg-green-50 text-green-600";
+  if (status === "Completed") {
+    return "bg-green-50 text-green-600";
+  }
+
+  return "bg-gray-50 text-gray-500";
+}
+
+function normalizeOrder(order) {
+  const status = order.status === "out_for_delivery" ? "Active" : order.status === "ready" ? "Available" : order.status === "delivered" ? "Completed" : order.status === "cancelled" ? "Cancelled" : order.status;
+  return {
+    id: `#RG${String(order.number).slice(0, 8).toUpperCase()}`,
+    orderId: order.id,
+    restaurant: order.restaurant_detail?.name || "Restaurant",
+    restaurantAddress: order.restaurant_detail?.address || order.restaurant_detail?.city || "",
+    customer: `${order.customer_detail?.first_name || ""} ${order.customer_detail?.last_name || ""}`.trim() || order.customer_detail?.email || "Customer",
+    customerAddress: order.delivery_address_detail?.line1 || "",
+    distance: order.delivery?.distance || "—",
+    time: order.delivery?.pickup_at ? "Assigned" : "—",
+    earning: `₹${order.delivery?.order?.delivery_fee || order.delivery_fee || 0}`,
+    status,
+    items: `${order.items?.length || 0} Items`,
+    raw: order,
+  };
 }
 
 export default function DeliveryOrders() {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const [orders, setOrders] = useState([]);
+  const [counts, setCounts] = useState({ available: 0, active: 0, completed: 0 });
+  const [activeTab, setActiveTab] = useState("Available");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchOrders = useCallback(async (tab) => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const path = tabPaths[tab] || "/orders/";
+      const data = await apiRequest(path, { token });
+      const results = data.results || data;
+      const normalized = results.map(normalizeOrder);
+      setOrders(normalized);
+    } catch (err) {
+      setError(err.message || "Unable to load orders.");
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  const fetchCounts = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [availableResponse, activeResponse, completedResponse] = await Promise.all([
+        apiRequest("/orders/available/", { token }),
+        apiRequest("/orders/?status=out_for_delivery", { token }),
+        apiRequest("/orders/?status=delivered", { token }),
+      ]);
+
+      setCounts({
+        available: (availableResponse.results || availableResponse).length,
+        active: (activeResponse.results || activeResponse).length,
+        completed: (completedResponse.results || completedResponse).length,
+      });
+    } catch {
+      setCounts({ available: 0, active: 0, completed: 0 });
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchOrders(activeTab);
+      fetchCounts();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [fetchOrders, fetchCounts, activeTab]);
+
+  const handleAccept = async (orderId) => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      await apiRequest(`/orders/${orderId}/accept/`, { method: "POST", token });
+      await fetchOrders("Available");
+      await fetchCounts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkDelivered = async (orderId) => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      await apiRequest(`/orders/${orderId}/status/`, { method: "POST", token, body: { status: "delivered" } });
+      await fetchOrders("Active");
+      await fetchCounts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleContinueNavigation = (orderId) => {
+    navigate(`/delivery-navigation?orderId=${orderId}`);
+  };
+
   return (
     <div className="min-h-screen bg-[#fffaf7]">
       <DeliverySidebar />
@@ -135,7 +204,7 @@ export default function DeliveryOrders() {
               </p>
 
               <h2 className="mt-2 text-3xl font-bold text-gray-900">
-                12
+                {counts.available}
               </h2>
             </div>
 
@@ -149,7 +218,7 @@ export default function DeliveryOrders() {
               </p>
 
               <h2 className="mt-2 text-3xl font-bold text-gray-900">
-                1
+                {counts.active}
               </h2>
             </div>
 
@@ -163,18 +232,19 @@ export default function DeliveryOrders() {
               </p>
 
               <h2 className="mt-2 text-3xl font-bold text-gray-900">
-                18
+                {counts.completed}
               </h2>
             </div>
           </div>
 
           {/* Tabs */}
           <div className="mt-8 flex flex-wrap gap-3">
-            {tabs.map((tab, index) => (
+            {tabs.map((tab) => (
               <button
                 key={tab}
+                onClick={() => setActiveTab(tab)}
                 className={`rounded-full px-6 py-3 font-semibold transition ${
-                  index === 0
+                  activeTab === tab
                     ? "bg-orange-500 text-white"
                     : "border border-orange-100 bg-white text-gray-600 hover:text-orange-500"
                 }`}
@@ -186,11 +256,25 @@ export default function DeliveryOrders() {
 
           {/* Orders */}
           <div className="mt-8 grid gap-6 xl:grid-cols-2">
-            {orders.map((order) => (
-              <div
-                key={order.id}
-                className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
-              >
+            {loading ? (
+              <div className="col-span-full rounded-3xl border border-orange-100 bg-white p-6 text-center text-gray-500 shadow-sm">
+                Loading orders…
+              </div>
+            ) : error ? (
+              <div className="col-span-full rounded-3xl border border-orange-100 bg-white p-6 text-center text-red-500 shadow-sm">
+                {error}
+              </div>
+            ) : orders.length === 0 ? (
+              <div className="col-span-full rounded-3xl border border-dashed border-orange-200 bg-white p-10 text-center shadow-sm">
+                <p className="text-xl font-semibold text-gray-900">No orders found</p>
+                <p className="mt-2 text-gray-500">Try a different tab or refresh the page.</p>
+              </div>
+            ) : orders.map((order) => {
+              return (
+                <div
+                  key={order.id}
+                  className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
+                >
                 {/* Order Header */}
                 <div className="flex items-start justify-between gap-5">
                   <div>
@@ -323,7 +407,10 @@ export default function DeliveryOrders() {
                 <div className="mt-6 flex gap-3 border-t border-gray-100 pt-5">
                   {order.status === "Available" && (
                     <>
-                      <button className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white transition hover:bg-orange-600">
+                      <button
+                        onClick={() => handleAccept(order.orderId)}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white transition hover:bg-orange-600"
+                      >
                         <Check size={18} />
                         Accept Delivery
                       </button>
@@ -335,10 +422,22 @@ export default function DeliveryOrders() {
                   )}
 
                   {order.status === "Active" && (
-                    <button className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white transition hover:bg-orange-600">
-                      <Navigation size={18} />
-                      Continue Navigation
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleContinueNavigation(order.orderId)}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white transition hover:bg-orange-600"
+                      >
+                        <Navigation size={18} />
+                        Continue Navigation
+                      </button>
+                      <button
+                        onClick={() => handleMarkDelivered(order.orderId)}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-50 px-5 py-3 font-semibold text-green-600 transition hover:bg-green-100"
+                      >
+                        <PackageCheck size={18} />
+                        Mark Delivered
+                      </button>
+                    </>
                   )}
 
                   {order.status === "Completed" && (
@@ -353,7 +452,8 @@ export default function DeliveryOrders() {
                   </button>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         </section>
       </main>

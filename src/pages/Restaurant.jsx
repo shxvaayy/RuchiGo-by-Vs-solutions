@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -9,8 +9,9 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import { useAuth } from "../context/AuthContext.jsx";
 import toast from "react-hot-toast";
+import { useCart } from "../context/CartContext.jsx";
+import { apiRequest } from "../lib/api.js";
 
 // ===============================
 // Food Images
@@ -228,17 +229,28 @@ const menuItems = [
     veg: true,
     bestseller: true,
   },
-];export default function Restaurant() {
+];
+
+export default function Restaurant() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
 
-  const restaurant = restaurants[id] || restaurants[1];
+  const [restaurant, setRestaurant] = useState(restaurants[id] || restaurants[1]);
+  const [menu, setMenu] = useState(menuItems);
+  const { addToCart } = useCart();
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
 
-  const filteredMenu = menuItems.filter((item) => {
+  useEffect(() => {
+    apiRequest(`/restaurants/${id}/`).then((data) => setRestaurant({ id: data.id, name: data.name, cuisine: data.description || "Restaurant", rating: data.average_rating, time: "30-40 min", delivery: "₹40 Delivery", location: `${data.city}, ${data.address}`, image: data.image || food1 }));
+    apiRequest(`/menu-items/?restaurant=${id}`).then((data) => {
+      const results = data.results || data;
+      setMenu(results.map((item) => ({ id: item.id, name: item.name, description: item.description, price: Number(item.price), rating: item.restaurant_detail?.average_rating || "New", image: item.image || food1, category: item.category_name || "Menu", veg: item.is_vegetarian, bestseller: false })));
+    }).catch(() => toast.error("Unable to load this restaurant menu."));
+  }, [id]);
+
+  const filteredMenu = menu.filter((item) => {
     const matchesSearch = item.name
       .toLowerCase()
       .includes(search.toLowerCase());
@@ -250,21 +262,6 @@ const menuItems = [
     return matchesSearch && matchesCategory;
   });
 
-  const handleAction = (path) => {
-    if (!isAuthenticated) {
-      toast.error("Please login to continue.");
-      navigate("/login", {
-        state: {
-          from: {
-            pathname: path,
-          },
-        },
-      });
-      return;
-    }
-
-    navigate(path);
-  };
 
   return (
     <>
@@ -504,7 +501,10 @@ const menuItems = [
                         </p>
 
                         <button
-                          onClick={() => handleAction("/cart")}
+                          onClick={async () => {
+                            try { await addToCart(item); toast.success("Added to cart."); }
+                            catch (error) { toast.error(error.message); navigate("/login", { state: { from: { pathname: `/restaurant/${id}` } } }); }
+                          }}
                           className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-6 py-3 font-semibold text-white shadow-lg transition duration-300 hover:scale-105 hover:shadow-xl"
                         >
                           <Plus size={18} />

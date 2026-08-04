@@ -3,6 +3,8 @@ import { Search, Star, Clock3, ShoppingCart, SlidersHorizontal, X, UtensilsCross
 import { useNavigate } from "react-router-dom";
 import { foodData } from "../data/foodData";
 import { useCart } from "../context/CartContext.jsx";
+import { apiRequest } from "../lib/api.js";
+import toast from "react-hot-toast";
 
 const filterChips = [
   "Veg",
@@ -24,6 +26,7 @@ export default function SearchPage() {
   const { addToCart } = useCart();
   const [query, setQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("All");
+  const [foods, setFoods] = useState(foodData);
   const [recent, setRecent] = useState(() => {
     if (typeof window === "undefined") {
       return recentSearches;
@@ -47,20 +50,40 @@ export default function SearchPage() {
     }
   }, [recent]);
 
+  useEffect(() => {
+    apiRequest("/menu-items/").then((data) => {
+      const results = data.results || data;
+      setFoods(results.map((item) => ({
+        id: item.id,
+        restaurantId: item.restaurant,
+        restaurant: item.restaurant_detail?.name || "Restaurant",
+        category: item.category_name || "Menu",
+        name: item.name,
+        description: item.description,
+        price: Number(item.price),
+        rating: item.restaurant_detail?.average_rating || "New",
+        isVeg: item.is_vegetarian,
+        deliveryTime: `${item.preparation_minutes} min`,
+        image: item.image || "/favicon.svg",
+        imageAlt: item.name,
+      })));
+    }).catch(() => toast.error("Unable to load the menu right now."));
+  }, []);
+
   const suggestions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return [];
 
-    return foodData
+    return foods
       .filter((item) => item.name.toLowerCase().includes(normalizedQuery) || item.restaurant.toLowerCase().includes(normalizedQuery))
       .slice(0, 5)
       .map((item) => item.name);
-  }, [query]);
+  }, [foods, query]);
 
   const results = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return foodData.filter((item) => {
+    return foods.filter((item) => {
       const matchesQuery =
         !normalizedQuery ||
         item.name.toLowerCase().includes(normalizedQuery) ||
@@ -79,7 +102,7 @@ export default function SearchPage() {
 
       return matchesQuery && matchesFilter;
     });
-  }, [query, selectedFilter]);
+  }, [foods, query, selectedFilter]);
 
   const handleSearch = (value) => {
     const trimmed = value.trim();
@@ -257,9 +280,14 @@ export default function SearchPage() {
                       </div>
 
                       <button
-                        onClick={() => {
-                          addToCart(item);
-                          navigate(`/food-details/${item.id}`);
+                        onClick={async () => {
+                          try {
+                            await addToCart(item);
+                            toast.success("Added to cart.");
+                          } catch (error) {
+                            toast.error(error.message);
+                            navigate("/login", { state: { from: { pathname: "/search" } } });
+                          }
                         }}
                         className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-200 transition hover:scale-[1.02]"
                       >

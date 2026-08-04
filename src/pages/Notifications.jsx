@@ -7,7 +7,10 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../lib/api.js";
+import toast from "react-hot-toast";
 
 const tabs = [
   "All",
@@ -60,8 +63,21 @@ export default function Notifications() {
   const [activeTab, setActiveTab] =
     useState("All");
 
-  const [notifications] =
-    useState(initialNotifications);
+  const { token } = useAuth();
+  const [notifications, setNotifications] = useState(initialNotifications);
+
+  useEffect(() => {
+    apiRequest("/notifications/", { token }).then((data) => setNotifications((data.results || data).map((item) => ({ id: item.id, title: item.title, message: item.message, time: new Date(item.created_at).toLocaleString(), type: item.kind === "order" ? "Orders" : "Offers", read: item.is_read, icon: item.kind === "order" ? PackageCheck : Tag })))).catch((error) => toast.error(error.message));
+  }, [token]);
+
+  const updateNotification = async (id, body) => {
+    try { const updated = await apiRequest(`/notifications/${id}/`, { token, method: "PATCH", body }); setNotifications((items) => items.map((item) => item.id === id ? { ...item, read: updated.is_read } : item)); }
+    catch (error) { toast.error(error.message); }
+  };
+  const removeNotification = async (id) => {
+    try { await apiRequest(`/notifications/${id}/`, { token, method: "DELETE" }); setNotifications((items) => items.filter((item) => item.id !== id)); }
+    catch (error) { toast.error(error.message); }
+  };
 
   const filteredNotifications =
     notifications.filter((notification) => {
@@ -105,7 +121,7 @@ export default function Notifications() {
 
             </div>
 
-            <button
+            <button onClick={() => Promise.all(notifications.map((item) => removeNotification(item.id)))}
               className="rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white transition hover:bg-orange-600"
             >
               Clear All
@@ -234,13 +250,13 @@ export default function Notifications() {
 
                         {!notification.read && (
 
-                          <button className="rounded-xl bg-green-500 px-5 py-3 font-semibold text-white transition hover:bg-green-600">
+                          <button onClick={() => updateNotification(notification.id, { is_read: true })} className="rounded-xl bg-green-500 px-5 py-3 font-semibold text-white transition hover:bg-green-600">
                             Mark as Read
                           </button>
 
                         )}
 
-                        <button className="rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-600 transition hover:bg-red-500 hover:text-white">
+                        <button onClick={() => removeNotification(notification.id)} className="rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-600 transition hover:bg-red-500 hover:text-white">
                           Delete
                         </button>
 

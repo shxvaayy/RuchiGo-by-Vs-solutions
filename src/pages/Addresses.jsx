@@ -1,193 +1,43 @@
+import { useCallback, useEffect, useState } from "react";
+import { Home, MapPin, Plus, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 import Navbar from "../components/Navbar.jsx";
-import {
-  MapPin,
-  Home,
-  Building2,
-  Plus,
-} from "lucide-react";
+import { useAuth } from "../context/AuthContext.jsx";
+import { apiRequest } from "../lib/api.js";
 
-import { useState } from "react";
-
-const initialAddresses = [
-  {
-    id: 1,
-    type: "Home",
-    icon: Home,
-    address:
-      "12-34, Brodipet, Guntur, Andhra Pradesh - 522002",
-    default: true,
-  },
-  {
-    id: 2,
-    type: "Work",
-    icon: Building2,
-    address:
-      "Auto Nagar, Vijayawada, Andhra Pradesh - 520007",
-    default: false,
-  },
-  {
-    id: 3,
-    type: "Parents Home",
-    icon: Home,
-    address:
-      "Narasaraopet, Palnadu, Andhra Pradesh - 522601",
-    default: false,
-  },
-];
+const emptyAddress = { label: "Home", line1: "", line2: "", city: "", state: "", postal_code: "" };
 
 export default function Addresses() {
+  const { token } = useAuth();
+  const [addresses, setAddresses] = useState([]);
+  const [form, setForm] = useState(emptyAddress);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const [addresses] =
-    useState(initialAddresses);
+  const loadAddresses = useCallback(async () => {
+    try {
+      const data = await apiRequest("/addresses/", { token });
+      setAddresses(data.results || data);
+    } catch (error) { toast.error(error.message); }
+  }, [token]);
+  useEffect(() => { const timer = window.setTimeout(() => { void loadAddresses(); }, 0); return () => window.clearTimeout(timer); }, [loadAddresses]);
 
-  return (
+  const createAddress = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await apiRequest("/addresses/", { token, method: "POST", body: { ...form, is_default: addresses.length === 0 } });
+      toast.success("Address saved."); setForm(emptyAddress); setShowForm(false); await loadAddresses();
+    } catch (error) { toast.error(error.message); } finally { setSaving(false); }
+  };
+  const removeAddress = async (id) => {
+    try { await apiRequest(`/addresses/${id}/`, { token, method: "DELETE" }); setAddresses((items) => items.filter((item) => item.id !== id)); toast.success("Address removed."); }
+    catch (error) { toast.error(error.message); }
+  };
 
-    <>
-
-      <Navbar />
-
-      <main className="min-h-screen bg-[#fffaf7]">
-
-        <section className="mx-auto max-w-6xl px-6 py-10">
-
-          {/* Header */}
-
-          <div className="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-center">
-
-            <div>
-
-              <p className="font-semibold text-orange-500">
-                Delivery
-              </p>
-
-              <h1 className="mt-2 text-4xl font-bold text-gray-900">
-                Saved Addresses
-              </h1>
-
-              <p className="mt-3 text-gray-500">
-                Manage your delivery locations for faster checkout.
-              </p>
-
-            </div>
-
-            <button className="flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white transition hover:bg-orange-600">
-
-              <Plus size={20} />
-
-              Add New Address
-
-            </button>
-
-          </div>
-
-          {/* Address Cards */}
-
-          <div className="space-y-6">
-                        {addresses.length === 0 ? (
-
-              <div className="rounded-3xl border border-dashed border-orange-200 bg-white py-20 text-center shadow-sm">
-
-                <MapPin
-                  size={70}
-                  className="mx-auto text-orange-300"
-                />
-
-                <h2 className="mt-6 text-3xl font-bold text-gray-900">
-                  No Saved Addresses
-                </h2>
-
-                <p className="mt-4 text-gray-500">
-                  Add your first delivery address to enjoy faster checkout.
-                </p>
-
-              </div>
-
-            ) : (
-
-              addresses.map((address) => {
-
-                const Icon = address.icon;
-
-                return (
-
-                  <div
-                    key={address.id}
-                    className="rounded-3xl border border-orange-100 bg-white p-7 shadow-sm transition hover:border-orange-300 hover:shadow-lg"
-                  >
-
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-
-                      {/* Left Side */}
-
-                      <div className="flex items-start gap-5">
-
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-100 text-orange-500">
-
-                          <Icon size={30} />
-
-                        </div>
-
-                        <div>
-
-                          <div className="flex flex-wrap items-center gap-3">
-
-                            <h2 className="text-2xl font-bold text-gray-900">
-                              {address.type}
-                            </h2>
-
-                            {address.default && (
-
-                              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-600">
-                                Default
-                              </span>
-
-                            )}
-
-                          </div>
-
-                          <p className="mt-3 max-w-xl leading-7 text-gray-500">
-                            {address.address}
-                          </p>
-
-                        </div>
-
-                      </div>
-
-                      {/* Right Side */}
-
-                      <div className="flex flex-wrap gap-3">
-
-                        <button className="rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white transition hover:bg-orange-600">
-                          Use Address
-                        </button>
-
-                        <button className="rounded-xl border border-blue-300 px-5 py-3 font-semibold text-blue-600 transition hover:bg-blue-500 hover:text-white">
-                          Edit
-                        </button>
-
-                        <button className="rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-600 transition hover:bg-red-500 hover:text-white">
-                          Delete
-                        </button>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                );
-
-              })
-
-            )}
-                      </div>
-
-        </section>
-
-      </main>
-
-    </>
-
-  );
-
+  return <><Navbar /><main className="min-h-screen bg-[#fffaf7]"><section className="mx-auto max-w-4xl px-6 py-10">
+    <div className="mb-8 flex items-center justify-between gap-4"><div><p className="font-semibold text-orange-500">Delivery</p><h1 className="mt-2 text-4xl font-bold text-gray-900">Saved Addresses</h1><p className="mt-3 text-gray-500">Manage delivery locations for checkout.</p></div><button onClick={() => setShowForm((open) => !open)} className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-3 font-semibold text-white"><Plus size={18} />Add address</button></div>
+    {showForm && <form onSubmit={createAddress} className="mb-6 grid gap-3 rounded-3xl border border-orange-100 bg-white p-6 shadow-sm md:grid-cols-2">{Object.entries(form).map(([key, value]) => <label key={key} className="text-sm font-medium text-gray-700">{key.replace("_", " ")}<input required={key !== "line2"} value={value} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 capitalize" /></label>)}<button disabled={saving} className="rounded-xl bg-orange-500 px-4 py-3 font-semibold text-white md:col-span-2">{saving ? "Saving..." : "Save address"}</button></form>}
+    <div className="space-y-4">{addresses.length ? addresses.map((address) => <div key={address.id} className="flex items-start justify-between gap-4 rounded-3xl border border-orange-100 bg-white p-6 shadow-sm"><div className="flex gap-4"><div className="rounded-2xl bg-orange-50 p-3 text-orange-500"><Home /></div><div><h2 className="font-bold text-gray-900">{address.label}{address.is_default && <span className="ml-2 text-xs text-green-600">Default</span>}</h2><p className="mt-2 text-gray-600">{[address.line1, address.line2, address.city, address.state, address.postal_code].filter(Boolean).join(", ")}</p></div></div><button onClick={() => removeAddress(address.id)} aria-label="Delete address" className="rounded-xl p-2 text-red-500 hover:bg-red-50"><Trash2 size={20} /></button></div>) : <div className="rounded-3xl border border-dashed border-orange-200 bg-white py-16 text-center"><MapPin className="mx-auto text-orange-300" size={48} /><p className="mt-4 font-semibold text-gray-700">No saved addresses yet.</p></div>}</div>
+  </section></main></>;
 }

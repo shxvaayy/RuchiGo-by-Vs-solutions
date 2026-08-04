@@ -30,6 +30,7 @@ export default function Navbar() {
   const guestItems = [
     { name: "Home", icon: Home, path: "/" },
     { name: "Restaurants", icon: Search, path: "/search" },
+    { name: "Offers", icon: MapPin, path: "/offers" },
     { name: "Support", icon: Headphones, path: "/support" },
   ];
 

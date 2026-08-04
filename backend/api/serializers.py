@@ -12,7 +12,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     class Meta: model = User; fields = ["email", "password", "first_name", "last_name", "phone", "role"]
     def validate_role(self, value):
-        if value == User.Role.ADMIN: raise serializers.ValidationError("Admin accounts cannot be self-registered.")
+        if value != User.Role.CUSTOMER: raise serializers.ValidationError("Only customer accounts can be self-registered. Restaurant and delivery accounts require approval.")
         return value
     def create(self, data):
         password_validation.validate_password(data["password"])
@@ -24,6 +24,8 @@ class RestaurantSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta: model = Category; fields = "__all__"; read_only_fields = ["created_at", "updated_at"]
 class MenuItemSerializer(serializers.ModelSerializer):
+    restaurant_detail = RestaurantSerializer(source="restaurant", read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True)
     class Meta: model = MenuItem; fields = "__all__"; read_only_fields = ["restaurant", "created_at", "updated_at"]
 class AddressSerializer(serializers.ModelSerializer):
     class Meta: model = Address; fields = "__all__"; read_only_fields = ["user", "created_at", "updated_at"]
@@ -47,7 +49,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 class DeliverySerializer(serializers.ModelSerializer):
     class Meta: model = DeliveryAssignment; fields = "__all__"; read_only_fields = ["order", "created_at", "updated_at"]
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True, read_only=True); payment = PaymentSerializer(read_only=True); delivery = DeliverySerializer(read_only=True)
+    items = OrderItemSerializer(many=True, read_only=True); payment = PaymentSerializer(read_only=True); delivery = DeliverySerializer(read_only=True); restaurant_detail = RestaurantSerializer(source="restaurant", read_only=True); customer_detail = UserSerializer(source="customer", read_only=True); delivery_address_detail = AddressSerializer(source="delivery_address", read_only=True)
     class Meta: model = Order; fields = "__all__"; read_only_fields = ["customer", "restaurant", "number", "status", "subtotal", "delivery_fee", "discount", "total", "coupon", "created_at", "updated_at"]
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta: model = Notification; fields = "__all__"; read_only_fields = ["user", "created_at", "updated_at"]

@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { apiRequest } from "../lib/api.js";
+import { apiRequest, refreshAccessToken } from "../lib/api.js";
 
 const AuthContext = createContext(null);
 
@@ -10,7 +10,7 @@ const STORAGE_KEY = "ruchigo-auth";
 const CART_KEY = "ruchigo-cart";
 const WISHLIST_KEY = "ruchigo-wishlist";
 const CACHE_KEY = "ruchigo-cache";
-const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
+const SESSION_FALLBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const defaultAuthState = {
   token: null,
@@ -18,6 +18,20 @@ const defaultAuthState = {
   role: "guest",
   expiresAt: null,
 };
+
+function getTokenExpiry(token) {
+  if (!token) return null;
+
+  try {
+    const payload = JSON.parse(
+      atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
+    );
+
+    return payload?.exp ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 
 function buildRedirectPath(role) {
   if (role === "restaurant") return "/restaurant-dashboard";
@@ -39,12 +53,16 @@ function readStoredAuth() {
       return defaultAuthState;
     }
 
-    if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+    const expiresAt = parsed.expiresAt || getTokenExpiry(parsed.token) || Date.now() + SESSION_FALLBACK_MS;
+    if (Date.now() > expiresAt) {
       window.localStorage.removeItem(STORAGE_KEY);
       return defaultAuthState;
     }
 
-    return parsed;
+    return {
+      ...parsed,
+      expiresAt,
+    };
   } catch {
     window.localStorage.removeItem(STORAGE_KEY);
     return defaultAuthState;
@@ -56,7 +74,7 @@ function persistAuth(nextAuth) {
 
   const payload = {
     ...nextAuth,
-    expiresAt: Date.now() + SESSION_DURATION_MS,
+    expiresAt: nextAuth.expiresAt || getTokenExpiry(nextAuth.token) || Date.now() + SESSION_FALLBACK_MS,
   };
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -77,6 +95,24 @@ export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(() => readStoredAuth());
   const [loading, setLoading] = useState(false);
 
+  const refreshSession = useCallback(async () => {
+    if (!auth.refreshToken) return false;
+    try {
+      const tokens = await refreshAccessToken(auth.refreshToken);
+      setAuth((current) => ({
+        ...current,
+        token: tokens.access,
+        refreshToken: tokens.refresh || current.refreshToken,
+        expiresAt: getTokenExpiry(tokens.access) || Date.now() + SESSION_FALLBACK_MS,
+      }));
+      return true;
+    } catch {
+      setAuth(defaultAuthState);
+      clearAuthStorage();
+      return false;
+    }
+  }, [auth.refreshToken]);
+
   useEffect(() => {
     if (!auth.token || !auth.user) {
       clearAuthStorage();
@@ -87,24 +123,39 @@ export function AuthProvider({ children }) {
   }, [auth]);
 
   const logout = useCallback((message = "Logged out successfully.") => {
+    const refreshToken = auth.refreshToken;
     setAuth(defaultAuthState);
     clearAuthStorage();
     setLoading(false);
+    if (refreshToken) {
+      apiRequest("/auth/logout/", { method: "POST", token: auth.token, body: { refresh: refreshToken } }).catch(() => undefined);
+    }
     navigate("/login", { replace: true });
     toast.success(message);
-  }, [navigate]);
+  }, [auth.refreshToken, auth.token, navigate]);
 
   useEffect(() => {
     if (!auth.token || !auth.user || !auth.expiresAt) return undefined;
 
-    const timeoutId = window.setTimeout(() => {
-      if (Date.now() > auth.expiresAt) {
-        logout("Session expired. Please log in again.");
-      }
-    }, 1000);
+    const refreshLeadTimeMs = 60 * 1000;
+    const timeUntilRefresh = auth.expiresAt - Date.now() - refreshLeadTimeMs;
+
+    if (timeUntilRefresh <= 0) {
+      const immediateId = window.setTimeout(async () => {
+        const refreshed = await refreshSession();
+        if (!refreshed) logout("Session expired. Please log in again.");
+      }, 0);
+
+      return () => window.clearTimeout(immediateId);
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      const refreshed = await refreshSession();
+      if (!refreshed) logout("Session expired. Please log in again.");
+    }, timeUntilRefresh);
 
     return () => window.clearTimeout(timeoutId);
-  }, [auth, logout]);
+  }, [auth.expiresAt, auth.token, auth.user, logout, refreshSession]);
 
   const login = useCallback(async ({ email, password, role = "customer" }) => {
     setLoading(true);
@@ -122,9 +173,16 @@ export function AuthProvider({ children }) {
     try {
       const data = await apiRequest("/auth/login/", { method: "POST", body: { email: normalizedEmail, password: normalizedPassword, role: safeRole } });
       const user = { ...data.user, name: `${data.user.first_name || ""} ${data.user.last_name || ""}`.trim() || data.user.email };
-      const nextAuth = { token: data.tokens.access, refreshToken: data.tokens.refresh, user, role: user.role, expiresAt: Date.now() + SESSION_DURATION_MS };
+      const nextAuth = {
+        token: data.tokens.access,
+        refreshToken: data.tokens.refresh,
+        user,
+        role: user.role,
+        expiresAt: getTokenExpiry(data.tokens.access) || Date.now() + SESSION_FALLBACK_MS,
+      };
 
-      setAuth(nextAuth); toast.success("Login successful.");
+      setAuth(nextAuth);
+      toast.success("Login successful.");
 
       const fromPath = location.state?.from?.pathname;
       navigate(fromPath || buildRedirectPath(user.role), { replace: true });
@@ -150,8 +208,16 @@ export function AuthProvider({ children }) {
       const [first_name, ...rest] = normalizedName.split(/\s+/);
       const data = await apiRequest("/auth/register/", { method: "POST", body: { email: normalizedEmail, password: normalizedPassword, phone: normalizedPhone, first_name, last_name: rest.join(" "), role: role || "customer" } });
       const user = { ...data.user, name: normalizedName };
-      setAuth({ token: data.tokens.access, refreshToken: data.tokens.refresh, user, role: user.role, expiresAt: Date.now() + SESSION_DURATION_MS });
-      toast.success("Account created successfully."); navigate(buildRedirectPath(user.role), { replace: true }); return true;
+      setAuth({
+        token: data.tokens.access,
+        refreshToken: data.tokens.refresh,
+        user,
+        role: user.role,
+        expiresAt: getTokenExpiry(data.tokens.access) || Date.now() + SESSION_FALLBACK_MS,
+      });
+      toast.success("Account created successfully.");
+      navigate(buildRedirectPath(user.role), { replace: true });
+      return true;
     } catch (error) { toast.error(error.message); return false; } finally { setLoading(false); }
   }, [navigate]);
 
@@ -163,8 +229,9 @@ export function AuthProvider({ children }) {
       login,
       register,
       logout,
+      refreshSession,
     }),
-    [auth, loading, login, logout, register]
+    [auth, loading, login, logout, refreshSession, register]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
