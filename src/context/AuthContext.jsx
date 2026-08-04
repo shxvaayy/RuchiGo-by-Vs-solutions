@@ -157,12 +157,11 @@ export function AuthProvider({ children }) {
     return () => window.clearTimeout(timeoutId);
   }, [auth.expiresAt, auth.token, auth.user, logout, refreshSession]);
 
-  const login = useCallback(async ({ email, password, role = "customer" }) => {
+  const login = useCallback(async ({ email, password }) => {
     setLoading(true);
 
     const normalizedEmail = (email || "").trim().toLowerCase();
     const normalizedPassword = (password || "").trim();
-    const safeRole = role || "customer";
 
     if (!normalizedEmail || !normalizedPassword || normalizedPassword.length < 6) {
       setLoading(false);
@@ -171,7 +170,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const data = await apiRequest("/auth/login/", { method: "POST", body: { email: normalizedEmail, password: normalizedPassword, role: safeRole } });
+      const data = await apiRequest("/auth/login/", { method: "POST", body: { email: normalizedEmail, password: normalizedPassword } });
       const user = { ...data.user, name: `${data.user.first_name || ""} ${data.user.last_name || ""}`.trim() || data.user.email };
       const nextAuth = {
         token: data.tokens.access,

@@ -1,9 +1,6 @@
 import { motion } from "framer-motion";
 import {
   User,
-  Store,
-  Bike,
-  ShieldCheck,
 } from "lucide-react";
 
 const roles = [
@@ -12,24 +9,6 @@ const roles = [
     label: "Customer",
     icon: User,
     color: "from-orange-400 to-red-500",
-  },
-  {
-    id: "restaurant",
-    label: "Restaurant",
-    icon: Store,
-    color: "from-green-400 to-emerald-500",
-  },
-  {
-    id: "delivery",
-    label: "Delivery",
-    icon: Bike,
-    color: "from-blue-400 to-cyan-500",
-  },
-  {
-    id: "admin",
-    label: "Admin",
-    icon: ShieldCheck,
-    color: "from-purple-500 to-indigo-600",
   },
 ];
 
